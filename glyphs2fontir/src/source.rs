@@ -348,7 +348,7 @@ impl Work<Context, WorkId, WorkError> for StaticMetadataWork {
                 })
             })
             .collect();
-        let glyph_locations = font
+        let global_locations = font
             .masters
             .iter()
             .map(|m| font_info.locations.get(&m.axes_values).cloned().unwrap())
@@ -383,7 +383,7 @@ impl Work<Context, WorkId, WorkError> for StaticMetadataWork {
             names(font),
             axes,
             named_instances,
-            glyph_locations,
+            global_locations,
             Default::default(), // TODO: impl reading PS names from Glyphs
             italic_angle,
         )
