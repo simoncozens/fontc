@@ -325,7 +325,7 @@ impl Layer {
     // TODO add is_alternate, is_color, etc.
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Hash, ToPlist)]
+#[derive(Clone, Default, Debug, PartialEq, Hash)]
 pub struct LayerAttributes {
     pub coordinates: Vec<OrderedFloat<f64>>,
     // TODO: add axisRules, color, etc.
@@ -357,6 +357,16 @@ impl FromPlist for LayerAttributes {
         }
 
         Ok(LayerAttributes { coordinates })
+    }
+}
+
+impl From<LayerAttributes> for Plist {
+    fn from(attrs: LayerAttributes) -> Self {
+        let mut dict = BTreeMap::new();
+        if !attrs.coordinates.is_empty() {
+            dict.insert("coordinates".into(), attrs.coordinates.into());
+        }
+        Plist::Dictionary(dict)
     }
 }
 
@@ -1249,12 +1259,11 @@ fn parse_node_from_tokenizer(tokenizer: &mut Tokenizer<'_>) -> Result<Node, crat
 
 impl From<Node> for Plist {
     fn from(node: Node) -> Self {
-        format!(
-            "({},{},{})",
-            node.pt.x,
-            node.pt.y,
-            node.node_type.as_string_glyphs3()
-        )
+        vec![
+            Plist::Float(node.pt.x.into()),
+            Plist::Float(node.pt.y.into()),
+            Plist::String(node.node_type.as_string_glyphs3().into()),
+        ]
         .into()
     }
 }
@@ -2635,10 +2644,11 @@ mod tests {
         },
         glyphdata::{Category, GlyphData},
         plist::FromPlist,
-        Font, FontMaster, Node, Shape,
+        Font, FontMaster, Node, Plist, Shape,
     };
     use std::{
         collections::{BTreeMap, BTreeSet, HashSet},
+        fs,
         path::{Path, PathBuf},
     };
 
@@ -3687,10 +3697,19 @@ mod tests {
         );
     }
 
+    fn round_trip(glyphs_file: &PathBuf) {
+        let raw_content = fs::read_to_string(glyphs_file).unwrap();
+        // let raw_content = preprocess_unparsed_plist(&raw_content);
+        let plist = Plist::parse(&raw_content).unwrap();
+        let font: RawFont = RawFont::parse_plist(&raw_content).unwrap();
+        let plist2: Plist = font.into();
+        assert_eq!(plist, plist2);
+    }
+
     #[test]
-    fn round_trip() {
-        let font = RawFont::load(&glyphs3_dir().join("Oswald-O.glyphs")).unwrap();
-        println!("{:#?}", font);
-        panic!();
+    fn round_trip_smol() {
+        round_trip(&glyphs3_dir().join("Dated.glyphs"));
+        round_trip(&glyphs3_dir().join("VersionMajorMinor.glyphs"));
+        round_trip(&glyphs3_dir().join("WghtVar1290upem.glyphs"));
     }
 }

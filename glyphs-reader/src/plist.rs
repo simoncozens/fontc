@@ -229,6 +229,39 @@ impl Plist {
         }
     }
 
+    pub fn flatten_to_integer(&self) -> Plist {
+        match self {
+            Plist::Float(f) => {
+                if f.fract() == 0.0 {
+                    Plist::Integer(f.into_inner() as i64)
+                } else {
+                    Plist::Float(*f)
+                }
+            }
+            Plist::String(s) => {
+                if let Ok(num) = s.parse() {
+                    Plist::Integer(num)
+                } else {
+                    self.clone()
+                }
+            }
+            _ => self.clone(),
+        }
+    }
+    pub fn flatten_to_string(&self) -> Plist {
+        match self {
+            Plist::Integer(i) => Plist::String(i.to_string()),
+            Plist::Float(f) => {
+                if f.fract() == 0.0 {
+                    Plist::String((f.into_inner() as i64).to_string())
+                } else {
+                    Plist::String(f.to_string())
+                }
+            }
+            _ => self.clone(),
+        }
+    }
+
     pub fn expect_dict(self) -> Result<Dictionary, Error> {
         match self {
             Plist::Dictionary(dict) => Ok(dict),
@@ -380,6 +413,17 @@ impl Plist {
                 }
                 s.push('>');
             }
+        }
+    }
+
+    pub fn is_meaningful(&self) -> bool {
+        match self {
+            Plist::Array(a) => !a.is_empty(),
+            Plist::Dictionary(d) => !d.is_empty(),
+            Plist::String(s) => !s.is_empty(),
+            Plist::Integer(i) => *i != 0,
+            Plist::Float(f) => f.into_inner() != 0.0,
+            Plist::Data(d) => !d.is_empty(),
         }
     }
 }
