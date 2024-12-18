@@ -5,6 +5,7 @@ use darling::FromField;
 pub(crate) struct FieldAttrs {
     pub(crate) ignore: Option<bool>,
     pub(crate) other: Option<bool>,
+    pub(crate) always_serialize: Option<bool>,
     #[darling(rename = "key")]
     pub(crate) plist_field_name: Option<String>,
     #[darling(multiple, rename = "alt_name")]

@@ -147,6 +147,18 @@ fn add_serializecases(input: &DeriveInput) -> syn::Result<TokenStream> {
                         }
                     }
                 }
+                Type::Path(typepath)
+                    if typepath.qself.is_none() && path_is_vec(&typepath.path) && filter.is_some() =>
+                {
+                    let filter = filter.unwrap();
+                    let plist = quote! { self.#name.iter().map(|x| Into::<Plist>::into(x.clone()).#filter()).collect::<Vec<Plist>>() };
+
+                    quote_spanned! {
+                        f.span() => if !self.#name.is_empty() {
+                            dict.insert(#plist_name.into(), Plist::Array(#plist));
+                        }
+                    }
+                }
 
                 _ => {
                     if attrs.other.unwrap_or(false) {
@@ -155,11 +167,20 @@ fn add_serializecases(input: &DeriveInput) -> syn::Result<TokenStream> {
                         }
                     } else {
                         let plist = if let Some(filter) = filter { quote! { Into::<Plist>::into(self.#name).#filter() } } else { quote! { self.#name.into() } };
+                        let condition = if attrs.always_serialize.unwrap_or(false) {
+                            quote_spanned! {
+                                f.span() => true
+                            }
+                        } else {
+                            quote_spanned! {
+                                f.span() => result.is_meaningful()
+                            }
+                        };
                         quote_spanned! {
                             f.span() => 
                                 {
                                     let result: crate::plist::Plist = #plist;
-                                    if result.is_meaningful() {
+                                    if #condition {
                                         dict.insert(#plist_name.into(), result);
                                     }
                                 }
@@ -195,4 +216,8 @@ fn snake_to_camel_case(id: &str) -> String {
 
 fn path_is_option(path: &Path) -> bool {
     !path.segments.is_empty() && path.segments.iter().last().unwrap().ident == "Option"
+}
+
+fn path_is_vec(path: &Path) -> bool {
+    !path.segments.is_empty() && path.segments.iter().last().unwrap().ident == "Vec"
 }

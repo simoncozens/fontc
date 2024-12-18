@@ -234,11 +234,22 @@ impl From<Kerning> for Plist {
     fn from(kerning: Kerning) -> Self {
         let mut dict = BTreeMap::new();
         for (master_id, pairs) in kerning.0 {
-            let mut inner_dict = BTreeMap::new();
+            let mut first_dict: BTreeMap<SmolStr, BTreeMap<SmolStr, Plist>> = BTreeMap::new();
             for ((lhs, rhs), value) in pairs {
-                inner_dict.insert(format!("{}={}", lhs, rhs).into(), value.into());
+                first_dict
+                    .entry(lhs.into())
+                    .or_default()
+                    .insert(rhs.into(), value.into());
             }
-            dict.insert(master_id.into(), Plist::Dictionary(inner_dict));
+            dict.insert(
+                master_id.into(),
+                Plist::Dictionary(
+                    first_dict
+                        .iter()
+                        .map(|(k, v)| (k.clone(), Plist::Dictionary(v.clone())))
+                        .collect(),
+                ),
+            );
         }
         Plist::Dictionary(dict)
     }
@@ -381,10 +392,12 @@ pub enum Shape {
 #[derive(Default, Debug, PartialEq, FromPlist, ToPlist)]
 #[allow(non_snake_case)]
 struct RawFont {
-    #[fromplist(key = ".appVersion")]
-    app_version: i64,
+    #[fromplist(key = ".appVersion", filter = "flatten_to_string")]
+    app_version: String,
     #[fromplist(key = ".formatVersion")]
     format_version: i64,
+    #[fromplist(key = "DisplayStrings")]
+    display_strings: Vec<String>,
     units_per_em: Option<i64>,
     metrics: Vec<RawMetric>,
     family_name: String,
@@ -429,6 +442,7 @@ impl From<RawCustomParameters> for Plist {
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawCustomParameterValue {
     name: SmolStr,
+    #[fromplist(always_serialize)]
     value: Plist,
     disabled: Option<bool>,
 }
@@ -1053,6 +1067,7 @@ struct RawFontMaster {
     win_ascender: Option<OrderedFloat<f64>>,
     win_descender: Option<OrderedFloat<f64>>,
 
+    #[fromplist(filter = "flatten_to_integer")]
     axes_values: Vec<OrderedFloat<f64>>,
     metric_values: Vec<RawMetricValue>, // v3
 
@@ -1075,7 +1090,9 @@ struct RawFontMaster {
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 pub struct RawMetricValue {
+    #[fromplist(filter = "flatten_to_integer")]
     pos: Option<OrderedFloat<f64>>,
+    #[fromplist(filter = "flatten_to_integer")]
     over: Option<OrderedFloat<f64>>,
 }
 
@@ -1118,6 +1135,7 @@ struct RawInstance {
     exports: Option<i64>,
     active: Option<i64>,
     type_: Option<String>,
+    #[fromplist(filter = "flatten_to_integer")]
     axes_values: Vec<OrderedFloat<f64>>,
 
     weight_value: Option<OrderedFloat<f64>>,
@@ -1128,8 +1146,12 @@ struct RawInstance {
 
     custom_value: Option<OrderedFloat<f64>>,
 
+    #[fromplist(filter = "flatten_to_integer")]
     weight_class: Option<String>,
     width_class: Option<String>,
+
+    #[fromplist(other)]
+    other_stuff: BTreeMap<String, Plist>,
 }
 
 impl RawInstance {
@@ -1260,8 +1282,8 @@ fn parse_node_from_tokenizer(tokenizer: &mut Tokenizer<'_>) -> Result<Node, crat
 impl From<Node> for Plist {
     fn from(node: Node) -> Self {
         vec![
-            Plist::Float(node.pt.x.into()),
-            Plist::Float(node.pt.y.into()),
+            Plist::Float(node.pt.x.into()).flatten_to_integer(),
+            Plist::Float(node.pt.y.into()).flatten_to_integer(),
             Plist::String(node.node_type.as_string_glyphs3().into()),
         ]
         .into()
@@ -3711,5 +3733,24 @@ mod tests {
         round_trip(&glyphs3_dir().join("Dated.glyphs"));
         round_trip(&glyphs3_dir().join("VersionMajorMinor.glyphs"));
         round_trip(&glyphs3_dir().join("WghtVar1290upem.glyphs"));
+        round_trip(&glyphs3_dir().join("KernFloats.glyphs"));
+        round_trip(&glyphs3_dir().join("NoMetaTable.glyphs"));
+        round_trip(&glyphs3_dir().join("infinity.glyphs"));
+        round_trip(&glyphs3_dir().join("Unicode-UnquotedDec.glyphs"));
+        // round_trip(&glyphs3_dir().join("Unicode-UnquotedDecSequence.glyphs"));
+        round_trip(&glyphs3_dir().join("WghtVarPanose.glyphs"));
+        round_trip(&glyphs3_dir().join("FixedPitch.glyphs"));
+        round_trip(&glyphs3_dir().join("WghtVarPanoseLong.glyphs"));
+        round_trip(&glyphs3_dir().join("EmptyMetaTable.glyphs"));
+    }
+
+    #[test]
+    fn round_trip_oswald_o() {
+        round_trip(&glyphs3_dir().join("Oswald-O.glyphs"));
+    }
+
+    #[test]
+    fn round_trip_oswald_ae() {
+        round_trip(&glyphs3_dir().join("Oswald-AE-comb.glyphs"));
     }
 }
