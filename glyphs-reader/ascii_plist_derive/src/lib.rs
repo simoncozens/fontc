@@ -134,28 +134,37 @@ fn add_serializecases(input: &DeriveInput) -> syn::Result<TokenStream> {
                 .plist_field_name
                 .unwrap_or_else(|| snake_to_camel_case(&name.to_string()));
             let name = name.clone();
+            let filter = attrs.filter.map(|s| s.parse::<TokenStream>().unwrap());
             match &f.ty {
                 Type::Path(typepath)
                     if typepath.qself.is_none() && path_is_option(&typepath.path) =>
                 {
+                    let plist = if let Some(filter) = filter { quote! {Into::<Plist>::into(inner).#filter() } } else { quote! {inner.into() } };
+
                     quote_spanned! {
                         f.span() => if let Some(inner) = self.#name {
-                            dict.insert(#plist_name.into(), inner.into());
+                            dict.insert(#plist_name.into(), #plist);
                         }
                     }
                 }
+
                 _ => {
-                 if attrs.other {
-                      quote_spanned! {
-                          f.span() => dict.extend(self.#name.iter().map(|(k, v)| (k.into(), v.clone())));
-                      }
-                  } else {
-                    quote_spanned! {
-                        f.span() => 
-                            #[allow(clippy::useless_conversion)]
-                            dict.insert(#plist_name.into(), self.#name.into());
+                    if attrs.other.unwrap_or(false) {
+                        quote_spanned! {
+                            f.span() => dict.extend(self.#name.iter().map(|(k, v)| (k.into(), v.clone())));
+                        }
+                    } else {
+                        let plist = if let Some(filter) = filter { quote! { Into::<Plist>::into(self.#name).#filter() } } else { quote! { self.#name.into() } };
+                        quote_spanned! {
+                            f.span() => 
+                                {
+                                    let result: crate::plist::Plist = #plist;
+                                    if result.is_meaningful() {
+                                        dict.insert(#plist_name.into(), result);
+                                    }
+                                }
+                        }
                     }
-                  }
                 }
             }
         })

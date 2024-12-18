@@ -788,6 +788,7 @@ struct RawGlyph {
     kern_left: Option<SmolStr>,
     #[fromplist(alt_name = "rightKerningGroup")]
     kern_right: Option<SmolStr>,
+    #[fromplist(filter = "flatten_to_integer")]
     unicode: Option<String>,
     category: Option<SmolStr>,
     sub_category: Option<SmolStr>,
@@ -800,6 +801,7 @@ struct RawLayer {
     name: String,
     layer_id: String,
     associated_master_id: Option<String>,
+    #[fromplist(filter = "flatten_to_integer")]
     width: OrderedFloat<f64>,
     shapes: Vec<RawShape>,
     paths: Vec<Path>,
