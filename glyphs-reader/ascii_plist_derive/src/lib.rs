@@ -83,11 +83,17 @@ fn add_fieldcases(input: &DeriveInput) -> syn::Result<TokenStream> {
                     .unwrap_or_else(|| snake_to_camel_case(&name.to_string())),
             )
             .chain(attrs.plist_addtl_names)
-            .map(|plist_name| {
+            .map(move |plist_name| {
                 let name = name.clone();
+                if attrs.other {
+                    quote_spanned! {
+                        f.span() => Some(unrecognized) => { rec.#name.insert(unrecognized.to_string(), tokenizer.parse()?); },
+                    }
+                } else {
                 quote_spanned! {
                     f.span() => Some(#plist_name) => rec.#name = tokenizer.parse()?,
                 }
+            }
             })
         })
         .collect::<Vec<_>>();

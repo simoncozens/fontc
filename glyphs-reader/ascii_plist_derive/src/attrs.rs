@@ -4,6 +4,7 @@ use syn::{
 };
 
 static IGNORE: &str = "ignore";
+static OTHER: &str = "other";
 static KEY: &str = "key";
 static ALT_NAME: &str = "alt_name";
 static DOC: &str = "doc";
@@ -11,6 +12,7 @@ static DOC: &str = "doc";
 #[derive(Clone, Default, Debug)]
 pub(crate) struct FieldAttrs {
     pub(crate) ignore: bool,
+    pub(crate) other: bool,
     pub(crate) plist_field_name: Option<String>,
     pub(crate) plist_addtl_names: Vec<String>,
 }
@@ -27,6 +29,7 @@ impl FieldAttrs {
             for meta in args {
                 match &meta {
                     Meta::Path(path) if path.is_ident(IGNORE) => this.ignore = true,
+                    Meta::Path(path) if path.is_ident(OTHER) => this.other = true,
                     Meta::NameValue(MetaNameValue {
                         path,
                         eq_token: _,

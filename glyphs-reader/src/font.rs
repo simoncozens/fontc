@@ -746,7 +746,7 @@ struct RawFeature {
     code: String,
     labels: Vec<RawNameValue>,
 
-    #[fromplist(ignore)]
+    #[fromplist(other)]
     other_stuff: BTreeMap<String, Plist>,
 }
 
@@ -771,7 +771,7 @@ struct RawGlyph {
     unicode: Option<String>,
     category: Option<SmolStr>,
     sub_category: Option<SmolStr>,
-    #[fromplist(ignore)]
+    #[fromplist(other)]
     other_stuff: BTreeMap<String, Plist>,
 }
 
@@ -787,7 +787,7 @@ struct RawLayer {
     anchors: Vec<RawAnchor>,
     #[fromplist(alt_name = "attr")]
     attributes: LayerAttributes,
-    #[fromplist(ignore)]
+    #[fromplist(other)]
     other_stuff: BTreeMap<String, Plist>,
 }
 
@@ -1023,7 +1023,7 @@ struct RawFontMaster {
     custom_parameters: RawCustomParameters,
     number_values: Vec<OrderedFloat<f64>>,
 
-    #[fromplist(ignore)]
+    #[fromplist(other)]
     other_stuff: BTreeMap<String, Plist>,
 }
 
@@ -3637,5 +3637,12 @@ mod tests {
             ],
             *mapping
         );
+    }
+
+    #[test]
+    fn round_trip() {
+        let font = RawFont::load(&glyphs3_dir().join("Oswald-O.glyphs")).unwrap();
+        println!("{:#?}", font);
+        panic!();
     }
 }
