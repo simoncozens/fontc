@@ -8,6 +8,7 @@
 extern crate proc_macro;
 
 use attrs::FieldAttrs;
+use darling::FromField;
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use std::iter;
@@ -90,12 +91,10 @@ fn fields_and_attrs(
         ));
     };
 
-    Ok(fields.named.iter().filter_map(|f| {
-        attrs::FieldAttrs::from_attrs(&f.attrs)
-            .ok()
-            .filter(|a| !a.ignore)
-            .map(|a| (f, a))
-    }))
+    let fields = fields.named.iter().map(|f| {
+        attrs::FieldAttrs::from_field(f).map(|attrs| (f, attrs))
+    }).collect::<Result<Vec<_>,_>>()?;
+    Ok(fields.into_iter().filter(|(_, attrs)| !attrs.ignore.unwrap_or(false)))
 }
 
 fn add_fieldcases(input: &DeriveInput) -> syn::Result<TokenStream> {
@@ -109,7 +108,7 @@ fn add_fieldcases(input: &DeriveInput) -> syn::Result<TokenStream> {
             .chain(attrs.plist_addtl_names)
             .map(move |plist_name| {
                 let name = name.clone();
-                if attrs.other {
+                if attrs.other.unwrap_or(false) {
                     quote_spanned! {
                         f.span() => Some(unrecognized) => { rec.#name.insert(unrecognized.to_string(), tokenizer.parse()?); },
                     }
