@@ -575,9 +575,21 @@ impl<'a> Token<'a> {
     }
 }
 
+impl From<bool> for Plist {
+    fn from(x: bool) -> Plist {
+        Plist::Integer(x as i64)
+    }
+}
+
 impl From<String> for Plist {
     fn from(x: String) -> Plist {
         Plist::String(x)
+    }
+}
+
+impl From<SmolStr> for Plist {
+    fn from(x: SmolStr) -> Plist {
+        Plist::String(x.into())
     }
 }
 
@@ -593,15 +605,24 @@ impl From<f64> for Plist {
     }
 }
 
-impl From<Vec<Plist>> for Plist {
-    fn from(x: Vec<Plist>) -> Plist {
-        Plist::Array(x)
+impl From<ordered_float::OrderedFloat<f64>> for Plist {
+    fn from(x: ordered_float::OrderedFloat<f64>) -> Plist {
+        Plist::Float(f64::from(x).into())
     }
 }
 
 impl From<Dictionary> for Plist {
     fn from(x: Dictionary) -> Plist {
         Plist::Dictionary(x)
+    }
+}
+
+impl<T> From<Vec<T>> for Plist
+where
+    T: Into<Plist>,
+{
+    fn from(x: Vec<T>) -> Plist {
+        Plist::Array(x.into_iter().map(Into::into).collect())
     }
 }
 
@@ -890,6 +911,12 @@ impl FromPlist for Point {
     }
 }
 
+impl From<Point> for Plist {
+    fn from(point: Point) -> Plist {
+        Plist::Array(vec![point.x.into(), point.y.into()])
+    }
+}
+
 /// Hand-written because it's a String that becomes a Thing
 impl FromPlist for Affine {
     fn parse(tokenizer: &mut Tokenizer<'_>) -> Result<Self, Error> {
@@ -904,6 +931,19 @@ impl FromPlist for Affine {
         Ok(Affine::new([
             coords[0], coords[1], coords[2], coords[3], coords[4], coords[5],
         ]))
+    }
+}
+impl From<Affine> for Plist {
+    fn from(affine: Affine) -> Plist {
+        Plist::String(format!(
+            "({:.6}, {:.6}, {:.6}, {:.6}, {:.6}, {:.6})",
+            affine.as_coeffs()[0],
+            affine.as_coeffs()[1],
+            affine.as_coeffs()[2],
+            affine.as_coeffs()[3],
+            affine.as_coeffs()[4],
+            affine.as_coeffs()[5]
+        ))
     }
 }
 

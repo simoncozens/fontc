@@ -12,7 +12,7 @@ use std::str::FromStr;
 use std::{fs, path};
 
 use crate::glyphdata::{Category, GlyphData, Subcategory};
-use ascii_plist_derive::FromPlist;
+use ascii_plist_derive::{FromPlist, ToPlist};
 use fontdrasil::types::WidthClass;
 use kurbo::{Affine, Point, Vec2};
 use log::{debug, warn};
@@ -230,6 +230,20 @@ impl FromPlist for Kerning {
     }
 }
 
+impl From<Kerning> for Plist {
+    fn from(kerning: Kerning) -> Self {
+        let mut dict = BTreeMap::new();
+        for (master_id, pairs) in kerning.0 {
+            let mut inner_dict = BTreeMap::new();
+            for ((lhs, rhs), value) in pairs {
+                inner_dict.insert(format!("{}={}", lhs, rhs).into(), value.into());
+            }
+            dict.insert(master_id.into(), Plist::Dictionary(inner_dict));
+        }
+        Plist::Dictionary(dict)
+    }
+}
+
 /// A chunk of FEA code
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct FeatureSnippet {
@@ -311,7 +325,7 @@ impl Layer {
     // TODO add is_alternate, is_color, etc.
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Hash)]
+#[derive(Clone, Default, Debug, PartialEq, Hash, ToPlist)]
 pub struct LayerAttributes {
     pub coordinates: Vec<OrderedFloat<f64>>,
     // TODO: add axisRules, color, etc.
@@ -354,7 +368,7 @@ pub enum Shape {
 
 // The font you get directly from a plist, minimally modified
 // Types chosen specifically to accomodate plist translation.
-#[derive(Default, Debug, PartialEq, FromPlist)]
+#[derive(Default, Debug, PartialEq, FromPlist, ToPlist)]
 #[allow(non_snake_case)]
 struct RawFont {
     #[fromplist(key = ".appVersion")]
@@ -386,7 +400,7 @@ struct RawFont {
     numbers: Vec<NumberName>,
 }
 
-#[derive(Default, Debug, PartialEq, FromPlist)]
+#[derive(Default, Debug, PartialEq, FromPlist, ToPlist)]
 struct NumberName {
     name: SmolStr,
 }
@@ -396,7 +410,13 @@ struct NumberName {
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct RawCustomParameters(Vec<RawCustomParameterValue>);
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, FromPlist)]
+impl From<RawCustomParameters> for Plist {
+    fn from(params: RawCustomParameters) -> Self {
+        Plist::Array(params.0.into_iter().map(Into::into).collect())
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawCustomParameterValue {
     name: SmolStr,
     value: Plist,
@@ -711,13 +731,13 @@ pub struct AxisMapping {
     user_to_design: Vec<(OrderedFloat<f64>, OrderedFloat<f64>)>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawMetric {
     // So named to let FromPlist populate it from a field called "type"
     type_: Option<String>,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawName {
     key: String,
     value: Option<String>,
@@ -730,13 +750,13 @@ impl RawName {
     }
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawNameValue {
     language: String,
     value: String,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawFeature {
     automatic: Option<i64>,
     disabled: Option<i64>,
@@ -750,7 +770,7 @@ struct RawFeature {
     other_stuff: BTreeMap<String, Plist>,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 pub struct Axis {
     #[fromplist(alt_name = "Name")]
     pub name: String,
@@ -759,7 +779,7 @@ pub struct Axis {
     pub hidden: Option<bool>,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, FromPlist, ToPlist)]
 struct RawGlyph {
     layers: Vec<RawLayer>,
     glyphname: SmolStr,
@@ -775,7 +795,7 @@ struct RawGlyph {
     other_stuff: BTreeMap<String, Plist>,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, FromPlist, ToPlist)]
 struct RawLayer {
     name: String,
     layer_id: String,
@@ -824,7 +844,7 @@ impl RawLayer {
 /// Represents a path OR a component
 ///
 /// <https://github.com/schriftgestalt/GlyphsSDK/blob/Glyphs3/GlyphsFileFormat/GlyphsFileFormatv3.md#differences-between-version-2>
-#[derive(Default, Clone, Debug, PartialEq, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, FromPlist, ToPlist)]
 struct RawShape {
     // TODO: add numerous unsupported attributes
 
@@ -835,7 +855,7 @@ struct RawShape {
     // When I'm a component I specifically want all my attributes to end up in other_stuff
     // My Component'ness can be detected by presence of a ref (Glyphs3) or name(Glyphs2) attribute
     // ref is reserved so take advantage of alt names
-    #[fromplist(alt_name = "ref", alt_name = "name")]
+    #[fromplist(key = "ref", alt_name = "name")]
     glyph_name: Option<SmolStr>,
 
     // for components, an optional name to rename an anchor
@@ -847,13 +867,13 @@ struct RawShape {
     scale: Vec<f64>,           // v3
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 pub struct Path {
     pub closed: bool,
     pub nodes: Vec<Node>,
 }
 
-#[derive(Default, Clone, Debug, FromPlist)]
+#[derive(Default, Clone, Debug, FromPlist, ToPlist)]
 pub struct Component {
     /// The glyph this component references
     pub name: SmolStr,
@@ -915,7 +935,21 @@ pub enum NodeType {
     QCurveSmooth,
 }
 
-#[derive(Default, Clone, Debug, PartialEq, FromPlist)]
+impl NodeType {
+    fn as_string_glyphs3(&self) -> &'static str {
+        match self {
+            NodeType::Line => "l",
+            NodeType::LineSmooth => "ls",
+            NodeType::OffCurve => "o",
+            NodeType::Curve => "c",
+            NodeType::CurveSmooth => "cs",
+            NodeType::QCurve => "q",
+            NodeType::QCurveSmooth => "qs",
+        }
+    }
+}
+
+#[derive(Default, Clone, Debug, PartialEq, FromPlist, ToPlist)]
 struct RawAnchor {
     name: SmolStr,
     pos: Option<Point>,       // v3
@@ -984,7 +1018,7 @@ impl FontMaster {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawFontMaster {
     id: String,
     name: Option<String>,
@@ -1027,7 +1061,7 @@ struct RawFontMaster {
     other_stuff: BTreeMap<String, Plist>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 pub struct RawMetricValue {
     pos: Option<OrderedFloat<f64>>,
     over: Option<OrderedFloat<f64>>,
@@ -1066,7 +1100,7 @@ impl From<&str> for InstanceType {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, FromPlist, ToPlist)]
 struct RawInstance {
     name: String,
     exports: Option<i64>,
@@ -1209,6 +1243,18 @@ fn parse_node_from_tokenizer(tokenizer: &mut Tokenizer<'_>) -> Result<Node, crat
         pt: Point { x, y },
         node_type,
     })
+}
+
+impl From<Node> for Plist {
+    fn from(node: Node) -> Self {
+        format!(
+            "({},{},{})",
+            node.pt.x,
+            node.pt.y,
+            node.node_type.as_string_glyphs3()
+        )
+        .into()
+    }
 }
 
 impl std::str::FromStr for NodeType {
